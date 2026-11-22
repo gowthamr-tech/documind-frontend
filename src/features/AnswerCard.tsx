@@ -4,7 +4,7 @@ import { useState } from "react";
 import { SummaryBadge, VerificationBadge } from "@/components/StatusBadge";
 import { Badge, cx } from "@/components/ui";
 import { citationHref, parseAnswer, type Segment } from "@/lib/answer";
-import type { Answer, Citation } from "@/lib/types";
+import type { Answer, Citation } from "@/lib/contracts";
 
 function Inline({ segs, cites, onCite }: { segs: Segment[]; cites: Map<string, Citation>; onCite: (id: string) => void }) {
   return (

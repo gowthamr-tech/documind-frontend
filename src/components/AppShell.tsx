@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
-import { cx, Spinner } from "@/components/ui";
+import { useEffect, useState, type ReactNode } from "react";
+import { cx, ErrorBox, Spinner } from "@/components/ui";
 import { useMe } from "@/hooks/queries";
-import { ApiError } from "@/lib/api";
+import { isApiError } from "@/lib/api";
 
 const NAV = [
   ["/", "Dashboard"], ["/documents", "Documents"], ["/documents/upload", "Upload"], ["/chat", "AI Chat"],
@@ -16,17 +17,30 @@ export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const me = useMe();
+  const qc = useQueryClient();
+  const [signingOut, setSigningOut] = useState(false);
+  const unauthenticated = isApiError(me.error, 401);
 
   useEffect(() => {
-    if (me.error instanceof ApiError && me.error.status === 401) router.replace(`/login?next=${encodeURIComponent(path)}`);
-  }, [me.error, path, router]);
+    if (unauthenticated) router.replace(`/login?next=${encodeURIComponent(path)}`);
+  }, [unauthenticated, path, router]);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    setSigningOut(true);
+    // The BFF clears the cookies even if the backend is unreachable, so failure here is harmless.
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    qc.clear(); // drop the previous user's cached data before anyone else signs in
     router.replace("/login");
   }
 
-  if (me.isLoading) return <div className="grid h-screen place-items-center"><Spinner /></div>;
+  if (me.isLoading || unauthenticated) return <div className="grid h-screen place-items-center"><Spinner /></div>;
+  if (me.error) {
+    return (
+      <div className="mx-auto max-w-md p-8">
+        <ErrorBox error={me.error} onRetry={() => void me.refetch()} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -47,7 +61,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="border-t border-slate-100 p-3 text-xs text-slate-500">
             <p className="truncate font-medium text-slate-700">{me.data.email}</p>
             <p className="truncate">{me.data.org_name} · {me.data.role}</p>
-            <button onClick={logout} className="mt-2 text-brand-700 hover:underline">Sign out</button>
+            <button onClick={() => void logout()} disabled={signingOut} className="mt-2 text-brand-700 hover:underline disabled:opacity-60">
+              {signingOut ? "Signing out…" : "Sign out"}
+            </button>
           </div>
         )}
       </aside>

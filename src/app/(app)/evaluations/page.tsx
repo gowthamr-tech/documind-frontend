@@ -2,20 +2,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge, Card, Empty, ErrorBox, PageHeader, Spinner } from "@/components/ui";
-import { api } from "@/lib/api";
-
-interface EvalRun {
-  id: string; experiment: string; started_at: string; git: string; dataset: Record<string, unknown>;
-  config: Record<string, unknown>; summary: { headline?: Record<string, number>; rows?: Record<string, unknown>[] };
-}
+import { api, isApiError } from "@/lib/api";
+import { EvalRunList } from "@/lib/contracts";
 
 export default function EvaluationsPage() {
-  const runs = useQuery({ queryKey: ["evals"], queryFn: () => api<EvalRun[]>("evaluations") });
+  const runs = useQuery({
+    queryKey: ["evals"],
+    queryFn: ({ signal }) => api("evaluations", EvalRunList, { signal }),
+    retry: (n, err) => !isApiError(err, 404) && n < 1,
+  });
   const [open, setOpen] = useState<string | null>(null);
   return (
     <>
       <PageHeader title="Evaluation dashboard" subtitle="Measured results only — each run records its dataset hash, configuration and code version" />
-      {runs.isLoading ? <Spinner /> : runs.error ? <ErrorBox error={runs.error} /> : !runs.data?.length ? (
+      {runs.isLoading ? <Spinner /> : isApiError(runs.error, 404) ? (
+        <Empty title="Evaluation results are not available yet">The backend does not expose an evaluation API yet (Phase 7). Offline benchmark reports live in the backend repository under <code>evaluation/results/</code>.</Empty>
+      ) : runs.error ? <ErrorBox error={runs.error} onRetry={() => void runs.refetch()} /> : !runs.data?.length ? (
         <Empty title="No evaluation runs recorded yet">Run <code>python -m benchmarks.run_all</code> in the backend to record one.</Empty>
       ) : (
         <div className="space-y-4">

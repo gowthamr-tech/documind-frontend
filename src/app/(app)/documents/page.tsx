@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DocStatus } from "@/components/StatusBadge";
 import { Badge, Button, Empty, ErrorBox, Input, PageHeader, Spinner } from "@/components/ui";
 import { useDocuments, useMe } from "@/hooks/queries";
-import { api } from "@/lib/api";
+import { apiVoid } from "@/lib/api";
 import { formatBytes } from "@/lib/table";
 
 export default function DocumentLibrary() {
@@ -15,8 +15,8 @@ export default function DocumentLibrary() {
   const qc = useQueryClient();
   const canDelete = me.data && ["admin", "owner"].includes(me.data.role);
   const del = useMutation({
-    mutationFn: (id: string) => api(`documents/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents"] }),
+    mutationFn: (id: string) => apiVoid(`documents/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["documents"] }),
   });
 
   return (
@@ -25,7 +25,7 @@ export default function DocumentLibrary() {
         actions={<Link href="/documents/upload"><Button>Upload</Button></Link>} />
       <div className="mb-4 max-w-sm"><Input placeholder="Search titles…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search documents" /></div>
       {del.error && <div className="mb-3"><ErrorBox error={del.error} /></div>}
-      {docs.isLoading ? <Spinner /> : docs.error ? <ErrorBox error={docs.error} onRetry={() => docs.refetch()} /> : !docs.data?.items.length ? (
+      {docs.isLoading ? <Spinner /> : docs.error ? <ErrorBox error={docs.error} onRetry={() => void docs.refetch()} /> : !docs.data?.items.length ? (
         <Empty title={q ? "No matching documents" : "No documents yet"}>Upload PDFs, scans, images, Word, Excel or PowerPoint files.</Empty>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -48,7 +48,12 @@ export default function DocumentLibrary() {
                     <td className="px-4 py-2">v{v?.version_no ?? "—"}</td>
                     <td className="px-4 py-2 text-slate-500">{new Date(d.created_at).toLocaleDateString()}</td>
                     <td className="px-4 py-2 text-right">
-                      {canDelete && <Button variant="ghost" onClick={() => confirm(`Delete “${d.title}”? This cannot be undone.`) && del.mutate(d.id)}>Delete</Button>}
+                      {canDelete && (
+                        <Button variant="ghost" disabled={del.isPending && del.variables === d.id}
+                          onClick={() => { if (confirm(`Delete “${d.title}”? This cannot be undone.`)) del.mutate(d.id); }}>
+                          {del.isPending && del.variables === d.id ? "Deleting…" : "Delete"}
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );

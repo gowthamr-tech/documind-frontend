@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bboxStyle, citationHref, parseAnswer, parseHighlight, parseInline } from "./answer";
 import { createSseParser, type SseEvent } from "./sse";
 import { toRenderRows } from "./table";
-import type { Cell } from "./types";
+import type { Cell } from "./contracts";
 
 describe("sse parser", () => {
   it("handles events split across chunks and multi-line data", () => {
@@ -56,5 +56,28 @@ describe("table rendering", () => {
       c(1, 1, "2023", 1, 1, true), c(1, 2, "2024", 1, 1, true), c(2, 0, "Cloud"), c(2, 1, "1"), c(2, 2, "2")], 3, 3);
     expect(rows.map((r) => r.map((x) => x.text))).toEqual([["Segment", "Fiscal year"], ["2023", "2024"], ["Cloud", "1", "2"]]);
     expect(rows[0]![1]!.colSpan).toBe(2);
+  });
+});
+
+describe("postSse", () => {
+  it("streams events from a chunked response through the BFF", async () => {
+    const { vi } = await import("vitest");
+    const { postSse } = await import("./sse");
+    const enc = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('event: run\ndata: {"conversation_id":'));
+        c.enqueue(enc.encode('"c1"}\n\nevent: final\ndata: {}\n\n'));
+        c.close();
+      },
+    });
+    const fetchMock = vi.fn(async () => new Response(body, { headers: { "content-type": "text/event-stream" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const got: SseEvent[] = [];
+    await postSse("query", { question: "q" }, (e) => got.push(e));
+    expect(got.map((e) => e.event)).toEqual(["run", "final"]);
+    const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(new Headers(init.headers).get("accept")).toBe("text/event-stream");
+    vi.unstubAllGlobals();
   });
 });

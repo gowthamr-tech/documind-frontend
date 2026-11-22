@@ -1,42 +1,56 @@
 "use client";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { errorMessage, isAbort } from "@/lib/api";
+import { applyEvent, finishTurn, newTurn, type Turn } from "@/lib/ask";
 import { postSse } from "@/lib/sse";
-import type { Answer, PendingApproval } from "@/lib/types";
 
-export interface Step { node: string; ms?: number; [k: string]: unknown }
-export interface Turn { question: string; steps: Step[]; partial: string; answer?: Answer; pending?: PendingApproval; error?: string }
+export type { Step, Turn } from "@/lib/ask";
 
-/** Streams one question through /query (or /query/compare) and accumulates a conversation. */
+/** Streams questions through /query (or /query/compare) and accumulates a conversation. */
 export function useAsk(endpoint: "query" | "query/compare") {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
   const conversation = useRef<string | null>(null);
   const abort = useRef<AbortController | null>(null);
 
-  const patch = (fn: (t: Turn) => Turn) => setTurns((ts) => ts.map((t, i) => (i === ts.length - 1 ? fn(t) : t)));
+  // Never leave a request (and its LLM spend) running after the page is gone.
+  useEffect(() => () => abort.current?.abort(), []);
+
+  const patchLast = (fn: (t: Turn) => Turn) =>
+    setTurns((ts) => (ts.length ? [...ts.slice(0, -1), fn(ts[ts.length - 1]!)] : ts));
 
   const ask = useCallback(async (question: string, documentIds: string[]) => {
+    if (abort.current) return; // one question at a time
+    const controller = new AbortController();
+    abort.current = controller;
     setBusy(true);
-    setTurns((ts) => [...ts, { question, steps: [], partial: "" }]);
-    abort.current = new AbortController();
+    setTurns((ts) => [...ts, newTurn(question)]);
+    const body = { question, document_ids: documentIds, conversation_id: conversation.current, stream: true };
     try {
-      await postSse(endpoint, { question, document_ids: documentIds, conversation_id: conversation.current, stream: true }, (e) => {
-        const data = JSON.parse(e.data);
-        if (e.event === "run") conversation.current = data.conversation_id;
-        else if (e.event === "agent_step") patch((t) => ({ ...t, steps: [...t.steps, data] }));
-        else if (e.event === "answer_delta") patch((t) => ({ ...t, partial: t.partial + data.text }));
-        else if (e.event === "final") patch((t) => ({ ...t, answer: data as Answer }));
-        else if (e.event === "approval_required") patch((t) => ({ ...t, pending: data as PendingApproval }));
-        else if (e.event === "error") patch((t) => ({ ...t, error: data.detail ?? data.title }));
-      }, abort.current.signal);
+      await postSse(endpoint, body, (e) => {
+        setTurns((ts) => {
+          const last = ts[ts.length - 1];
+          if (!last) return ts;
+          const { turn, conversationId } = applyEvent(last, e);
+          if (conversationId) conversation.current = conversationId;
+          return turn === last ? ts : [...ts.slice(0, -1), turn];
+        });
+      }, controller.signal);
+      patchLast((t) => finishTurn(t));
     } catch (err) {
-      patch((t) => ({ ...t, error: (err as Error).message }));
+      patchLast((t) => finishTurn(t, isAbort(err) ? { aborted: true } : { error: errorMessage(err) }));
     } finally {
+      if (abort.current === controller) abort.current = null;
       setBusy(false);
     }
   }, [endpoint]);
 
-  const reset = () => { conversation.current = null; setTurns([]); };
-  const stop = () => abort.current?.abort();
+  const stop = useCallback(() => abort.current?.abort(), []);
+  const reset = useCallback(() => {
+    abort.current?.abort();
+    conversation.current = null;
+    setTurns([]);
+  }, []);
+
   return { turns, busy, ask, reset, stop };
 }

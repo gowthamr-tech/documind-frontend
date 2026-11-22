@@ -1,4 +1,4 @@
-import type { Cell } from "./types";
+import type { Cell } from "./contracts";
 
 export interface GridCell { text: string; rowSpan: number; colSpan: number; header: boolean; numeric: boolean }
 

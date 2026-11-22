@@ -27,13 +27,13 @@ function Chat() {
         <Card><DocPicker selected={docs} onChange={setDocs} /></Card>
         <div className="flex min-h-[60vh] flex-col gap-4">
           <div className="flex-1">
-            {turns.length ? <Conversation turns={turns} busy={busy} /> : (
+            {turns.length ? <Conversation turns={turns} /> : (
               <Empty title="Ask a question about your documents">e.g. “Which expense category was largest, and by how much did it exceed cost of revenue?”</Empty>
             )}
           </div>
           <form onSubmit={submit} className="sticky bottom-0 flex gap-2 bg-slate-50 py-2">
-            <textarea value={q} onChange={(e) => setQ(e.target.value)} rows={2} placeholder={turns.length ? "Ask a follow-up…" : "Ask a question…"}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) submit(e); }} aria-label="Question"
+            <textarea value={q} maxLength={4000} onChange={(e) => setQ(e.target.value)} rows={2} placeholder={turns.length ? "Ask a follow-up…" : "Ask a question…"}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) submit(e); }} aria-label="Question"
               className="flex-1 resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" />
             {busy ? <Button type="button" variant="secondary" onClick={stop}>Stop</Button> : <Button type="submit" disabled={!q.trim()}>Ask</Button>}
           </form>

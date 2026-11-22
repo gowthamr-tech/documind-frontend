@@ -1,6 +1,7 @@
+import { JobBadge } from "@/components/StatusBadge";
 import { Badge } from "@/components/ui";
 import { fileUrl } from "@/lib/api";
-import type { FigureInfo } from "@/lib/types";
+import type { FigureInfo } from "@/lib/contracts";
 
 export function FigureCard({ docId, f }: { docId: string; f: FigureInfo }) {
   const v = f.validation;
@@ -9,7 +10,7 @@ export function FigureCard({ docId, f }: { docId: string; f: FigureInfo }) {
       <div>
         {f.has_image && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={fileUrl(`documents/${docId}/charts/${f.id}/image`)} alt={f.caption ?? "Figure"} className="w-full rounded border border-slate-100" />
+          <img src={fileUrl(`documents/${encodeURIComponent(docId)}/charts/${encodeURIComponent(f.id)}/image`)} alt={f.caption ?? "Figure"} className="w-full rounded border border-slate-100" />
         )}
         <p className="mt-2 text-sm font-medium">{f.caption ?? "Untitled figure"}</p>
         <p className="text-xs text-slate-500">Page {f.page_no ?? "—"} · {f.classifier_label ?? f.figure_type}
@@ -17,7 +18,7 @@ export function FigureCard({ docId, f }: { docId: string; f: FigureInfo }) {
       </div>
       <div className="space-y-2 text-sm">
         <div className="flex flex-wrap gap-2">
-          <Badge tone={f.analysis_status === "succeeded" ? "ok" : f.analysis_status === "failed" ? "bad" : "neutral"}>Analysis: {f.analysis_status}</Badge>
+          <JobBadge status={f.analysis_status} prefix="Analysis: " />
           {f.chart && <Badge tone={f.values_are_estimated ? "warn" : "ok"}>{f.values_are_estimated ? "Values estimated" : "Values OCR-verified"}</Badge>}
           {v?.points_total != null && <Badge>{v.points_verified}/{v.points_total} points matched by OCR</Badge>}
         </div>

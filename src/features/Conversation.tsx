@@ -9,7 +9,7 @@ const LABEL: Record<string, string> = {
   reasoning: "Drafting an answer", verify: "Verifying every claim", respond: "Finalising",
 };
 
-export function Conversation({ turns, busy }: { turns: Turn[]; busy: boolean }) {
+export function Conversation({ turns }: { turns: Turn[] }) {
   return (
     <div className="space-y-6">
       {turns.map((t, i) => (
@@ -19,11 +19,12 @@ export function Conversation({ turns, busy }: { turns: Turn[]; busy: boolean }) 
             {t.steps.length > 0 && !t.answer && (
               <ol className="mb-2 flex flex-wrap gap-1">{t.steps.map((s, j) => <li key={j}><Badge>{LABEL[s.node] ?? s.node}</Badge></li>)}</ol>
             )}
-            {t.error ? <p role="alert" className="text-sm text-bad">{t.error}</p>
+            {t.state === "failed" ? <p role="alert" className="text-sm text-bad">{t.error}</p>
+              : t.state === "stopped" ? <p className="text-sm text-slate-500">{t.error}</p>
               : t.pending ? <p className="text-sm text-warn">This question involves confidential documents and is waiting for an administrator&apos;s approval (request {t.pending.approval_id.slice(0, 8)}).</p>
               : t.answer ? <AnswerCard a={t.answer} />
               : t.partial ? <p className="text-sm">{t.partial}</p>
-              : busy && i === turns.length - 1 ? <Spinner label="Working…" /> : null}
+              : <Spinner label="Working…" />}
           </div>
         </div>
       ))}

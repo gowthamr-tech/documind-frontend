@@ -1,4 +1,6 @@
 // Minimal, spec-conformant Server-Sent Events parser for fetch() streams (EventSource can't POST).
+import { jsonBody, send } from "./api";
+
 export interface SseEvent { event: string; data: string }
 
 export function createSseParser(onEvent: (e: SseEvent) => void) {
@@ -23,20 +25,20 @@ export function createSseParser(onEvent: (e: SseEvent) => void) {
   };
 }
 
+/** POST a JSON body and feed the SSE response to `onEvent` until the server closes the stream. */
 export async function postSse(path: string, body: unknown, onEvent: (e: SseEvent) => void, signal?: AbortSignal) {
-  const res = await fetch(`/api/proxy/${path}`, {
-    method: "POST", headers: { "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify(body), signal,
-  });
-  if (!res.ok || !res.body) {
-    const { toError } = await import("./api");
-    throw await toError(res);
-  }
+  const init = jsonBody(body);
+  const res = await send(path, { ...init, headers: { ...init.headers, accept: "text/event-stream" }, signal });
+  if (!res.body) return;
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   const feed = createSseParser(onEvent);
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    feed(value);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      feed(value);
+    }
+  } finally {
+    reader.releaseLock();
   }
 }

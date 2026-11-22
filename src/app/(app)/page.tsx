@@ -5,9 +5,7 @@ import { SummaryBadge } from "@/components/StatusBadge";
 import { Card, ErrorBox, PageHeader, Spinner } from "@/components/ui";
 import { useDocuments } from "@/hooks/queries";
 import { api } from "@/lib/api";
-import type { Summary } from "@/lib/types";
-
-interface Run { id: string; question: string; status: string; verification_summary: Summary | null; latency_ms: number | null; created_at: string; prompt_tokens: number; completion_tokens: number }
+import { QueryRunList } from "@/lib/contracts";
 
 function Stat({ label, value, href }: { label: string; value: number | string; href?: string }) {
   const body = (<><p className="text-xs uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p></>);
@@ -16,7 +14,7 @@ function Stat({ label, value, href }: { label: string; value: number | string; h
 
 export default function Dashboard() {
   const docs = useDocuments();
-  const runs = useQuery({ queryKey: ["runs"], queryFn: () => api<Run[]>("query/runs?limit=20") });
+  const runs = useQuery({ queryKey: ["runs"], queryFn: ({ signal }) => api("query/runs?limit=20", QueryRunList, { signal }) });
   const items = docs.data?.items ?? [];
   const by = (s: string) => items.filter((d) => d.current_version?.status === s).length;
   const verified = (runs.data ?? []).filter((r) => r.verification_summary === "verified").length;
@@ -24,7 +22,7 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle="Your document workspace at a glance" />
-      {docs.error ? <ErrorBox error={docs.error} onRetry={() => docs.refetch()} /> : (
+      {docs.error ? <ErrorBox error={docs.error} onRetry={() => void docs.refetch()} /> : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Stat label="Documents" value={docs.isLoading ? "…" : items.length} href="/documents" />
           <Stat label="Ready" value={by("ready")} />
@@ -35,7 +33,7 @@ export default function Dashboard() {
       )}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card title="Recent questions" actions={<Link className="text-sm text-brand-700 hover:underline" href="/chat">Open chat</Link>}>
-          {runs.isLoading ? <Spinner /> : runs.error ? <ErrorBox error={runs.error} /> : !runs.data?.length ? (
+          {runs.isLoading ? <Spinner /> : runs.error ? <ErrorBox error={runs.error} onRetry={() => void runs.refetch()} /> : !runs.data?.length ? (
             <p className="text-sm text-slate-500">No questions yet.</p>
           ) : (
             <ul className="divide-y divide-slate-100">

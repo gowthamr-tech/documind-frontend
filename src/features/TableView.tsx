@@ -1,5 +1,5 @@
 import { toRenderRows } from "@/lib/table";
-import type { TableInfo } from "@/lib/types";
+import type { TableInfo } from "@/lib/contracts";
 
 // Rendered from structured cells (not backend HTML) — spans preserved, no HTML injection.
 export function TableView({ t }: { t: TableInfo }) {

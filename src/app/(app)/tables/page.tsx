@@ -5,17 +5,17 @@ import { Empty, ErrorBox, PageHeader, Spinner } from "@/components/ui";
 import { DocSelect } from "@/features/DocSelect";
 import { TableView } from "@/features/TableView";
 import { api } from "@/lib/api";
-import type { TableInfo } from "@/lib/types";
+import { TableList } from "@/lib/contracts";
 
 export default function TablesPage() {
   const [doc, setDoc] = useState("");
-  const tables = useQuery({ queryKey: ["tables", doc], queryFn: () => api<TableInfo[]>(`documents/${doc}/tables`), enabled: !!doc });
+  const tables = useQuery({ queryKey: ["tables", doc], queryFn: ({ signal }) => api(`documents/${doc}/tables`, TableList, { signal }), enabled: !!doc });
   return (
     <>
       <PageHeader title="Extracted tables" subtitle="Structure, merged headers, units and footnotes as recovered from the document" />
       <DocSelect value={doc} onChange={setDoc} />
       <div className="mt-4 space-y-6">
-        {!doc ? <Empty title="Choose a document to see its tables" /> : tables.isLoading ? <Spinner /> : tables.error ? <ErrorBox error={tables.error} />
+        {!doc ? <Empty title="Choose a document to see its tables" /> : tables.isLoading ? <Spinner /> : tables.error ? <ErrorBox error={tables.error} onRetry={() => void tables.refetch()} />
           : !tables.data?.length ? <Empty title="No tables were found in this document" />
           : tables.data.map((t) => (
             <div key={t.id} className="rounded-lg border border-slate-200 bg-white p-4">

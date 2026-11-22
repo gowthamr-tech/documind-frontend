@@ -1,7 +1,19 @@
+# Dependencies & build output (the .nosync variants keep them out of iCloud; see README)
 node_modules
 node_modules.nosync
 .next
 .next.nosync
+out/
+coverage/
 next-env.d.ts
 *.tsbuildinfo
-.env*.local
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

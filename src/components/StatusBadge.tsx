@@ -1,20 +1,45 @@
 import { Badge, type Tone } from "@/components/ui";
-import type { Summary, Verification, VersionStatus } from "@/lib/types";
+import type { JobStatus, Summary, Verification, VersionStatus } from "@/lib/contracts";
 
-const DOC: Record<VersionStatus, [Tone, string]> = {
+type Labels<K extends string> = Record<K, readonly [Tone, string]>;
+
+/** Look up a badge, degrading to a neutral one for values this build doesn't know yet. */
+function lookup<K extends string>(table: Labels<K>, key: string): readonly [Tone, string] {
+  return Object.hasOwn(table, key) ? table[key as K] : ["neutral", key.replaceAll("_", " ")];
+}
+
+const DOC: Labels<VersionStatus> = {
   uploaded: ["neutral", "Uploaded"], queued: ["info", "Queued"], processing: ["info", "Processing"],
   ready: ["ok", "Ready"], failed: ["bad", "Failed"],
 };
-export const DocStatus = ({ status }: { status: VersionStatus }) => <Badge tone={DOC[status][0]}>{DOC[status][1]}</Badge>;
+export function DocStatus({ status }: { status: VersionStatus }) {
+  const [tone, label] = lookup(DOC, status);
+  return <Badge tone={tone}>{label}</Badge>;
+}
 
-const VER: Record<Verification, [Tone, string]> = {
+const JOB: Labels<JobStatus> = {
+  pending: ["neutral", "pending"], running: ["info", "running"], succeeded: ["ok", "succeeded"],
+  failed: ["bad", "failed"], skipped: ["neutral", "skipped"],
+};
+export function JobBadge({ status, prefix = "" }: { status: string; prefix?: string }) {
+  const [tone, label] = lookup(JOB, status);
+  return <Badge tone={tone}>{prefix}{label}</Badge>;
+}
+
+const VER: Labels<Verification> = {
   verified: ["ok", "Verified"], partial: ["warn", "Partially supported"], unsupported: ["bad", "Unsupported"],
   unverified: ["neutral", "Unverified"],
 };
-export const VerificationBadge = ({ v }: { v: Verification }) => <Badge tone={VER[v][0]}>{VER[v][1]}</Badge>;
+export function VerificationBadge({ v }: { v: Verification }) {
+  const [tone, label] = lookup(VER, v);
+  return <Badge tone={tone}>{label}</Badge>;
+}
 
-const SUM: Record<Summary, [Tone, string]> = {
+const SUM: Labels<Summary> = {
   verified: ["ok", "All claims verified"], partially_verified: ["warn", "Partially verified"],
   insufficient_evidence: ["bad", "Insufficient evidence"],
 };
-export const SummaryBadge = ({ s }: { s: Summary }) => <Badge tone={SUM[s][0]}>{SUM[s][1]}</Badge>;
+export function SummaryBadge({ s }: { s: Summary }) {
+  const [tone, label] = lookup(SUM, s);
+  return <Badge tone={tone}>{label}</Badge>;
+}
